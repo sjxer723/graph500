@@ -1,0 +1,51 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+group("all") {
+  deps = [ ":graph500_reference_bfs_sssp" ]
+}
+
+SRC = [
+  "main.c",
+  "validate.c",
+  "../aml/aml.c",
+]
+GEN_SRC = [
+  "../generator/graph_generator.c",
+  "../generator/make_graph.c",
+  "../generator/splittable_mrg.c",
+  "../generator/utils.c",
+]
+
+source_set("utils") {
+  sources = [ "utils.c" ]
+}
+
+source_set("generate_graph") {
+  sources = [ "generate_graph.c" ]
+  sources += GEN_SRC
+
+  deps = [ ":utils" ]
+}
+
+executable("graph500_reference_bfs_sssp") {
+  sources = [
+    "bfs_reference.c",
+    "csr_reference.c",
+    "sssp_reference.c",
+  ]
+  sources += SRC
+
+  deps = [ ":generate_graph" ]
+  configs = []
+  cflags = [
+    "-Drestrict=__restrict__",
+    "-O3",
+    "-DGRAPH_GENERATOR_MPI",
+    "-DREUSE_CSR_FOR_VALIDATION",
+    "-I../aml/",
+  ]
+  ldflags = [ "-lpthread" ]
+  libs = [ "m" ]
+}

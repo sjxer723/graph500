@@ -5,7 +5,7 @@
 toolchain("gcc") {
   tool("cc") {
     depfile = "{{output}}.d"
-    command = "gcc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
+    command = "~/opt/usr/local/bin/mpicc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
     depsformat = "gcc"
     description = "CC {{output}}"
     outputs =
@@ -66,7 +66,7 @@ toolchain("gcc") {
     outfile = "{{target_output_name}}{{output_extension}}"
     rspfile = "$outfile.rsp"
     if (is_mac) {
-      command = "g++ {{ldflags}} -o $outfile @$rspfile {{solibs}} {{libs}}"
+      command = "~/opt/usr/local/bin/mpicc {{ldflags}} -o $outfile @$rspfile {{solibs}} {{libs}}"
     } else {
       command = "g++ {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
     }

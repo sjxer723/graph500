@@ -3,8 +3,8 @@
 # found in the LICENSE file.
 
 group("all") {
-
   deps = [
+    ":graph500_generate_graph_test",
     ":graph500_init_test",
   ]
 }
@@ -13,8 +13,29 @@ executable("graph500_init_test") {
   sources = [ "graph500_init_test.c" ]
 
   configs = []
-  cflags = [ "-I../../aml", "-I../../src" ] 
-  ldflags = [ "-lcmocka"]
+  cflags = [
+    "-I../aml/",
+    "-I./src",
+  ]
+  ldflags = [ "-lcmocka" ]
 }
 
+executable("graph500_generate_graph_test") {
+  sources = [ "graph500_generate_graph_test.c" ]
 
+  deps = [ "../src:generate_graph" ]
+  configs = []
+  cflags = [
+    "-Drestrict=__restrict__",
+    "-O3",
+    "-DGRAPH_GENERATOR_MPI",
+    "-DREUSE_CSR_FOR_VALIDATION",
+    "-I../aml",
+    "-I../src",
+  ]
+  ldflags = [
+    "-lcmocka",
+    "-lpthread",
+  ]
+  libs = [ "m" ]
+}

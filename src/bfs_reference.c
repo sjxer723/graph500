@@ -58,7 +58,7 @@ void visithndl(int from,void* data,int sz) {
 	}
 }
 
-inline void send_visit(int64_t glob, int from) {
+void send_visit(int64_t glob, int from) {
 	visitmsg m = {VERTEX_LOCAL(glob),from};
 	aml_send(&m,1,sizeof(visitmsg),VERTEX_OWNER(glob));
 }
@@ -68,7 +68,6 @@ void make_graph_data_structure(const tuple_graph* const tg) {
 	convert_graph_to_oned_csr(tg, &g);
 	column=g.column;
 	rowstarts=g.rowstarts;
-
 	visited_size = (g.nlocalverts + ulong_bits - 1) / ulong_bits;
 	aml_register_handler(visithndl,1);
 	q1 = xmalloc(g.nlocalverts*sizeof(int)); //100% of vertexes

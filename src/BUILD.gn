@@ -3,7 +3,10 @@
 # found in the LICENSE file.
 
 group("all") {
-  deps = [ ":graph500_reference_bfs_sssp" ]
+  deps = [
+    ":graph500_reference_bfs",
+    ":graph500_reference_bfs_sssp",
+  ]
 }
 
 SRC = [
@@ -34,6 +37,27 @@ executable("graph500_reference_bfs_sssp") {
     "bfs_reference.c",
     "csr_reference.c",
     "sssp_reference.c",
+  ]
+  sources += SRC
+
+  deps = [ ":generate_graph" ]
+  configs = []
+  cflags = [
+    "-Drestrict=__restrict__",
+    "-O3",
+    "-DGRAPH_GENERATOR_MPI",
+    "-DREUSE_CSR_FOR_VALIDATION",
+    "-I../aml/",
+    "-DSSSP",
+  ]
+  ldflags = [ "-lpthread" ]
+  libs = [ "m" ]
+}
+
+executable("graph500_reference_bfs") {
+  sources = [
+    "bfs_reference.c",
+    "csr_reference.c",
   ]
   sources += SRC
 

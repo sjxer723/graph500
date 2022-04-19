@@ -21,6 +21,7 @@
 #include "../generator/utils.h"
 #include "aml.h"
 #include "generate_graph.h"
+#include "csr_reference.h"
 #include "common.h"
 #include <math.h>
 #include <assert.h>
@@ -32,7 +33,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-int isisolated(int64_t v);
+//int isisolated(int64_t v);
 static int compare_doubles(const void* a, const void* b) {
 	double aa = *(const double*)a;
 	double bb = *(const double*)b;
@@ -69,14 +70,16 @@ void get_statistics(const double x[], int n, volatile double r[s_LAST]) {
 }
 
 int main(int argc, char** argv) {
-	double make_graph_time = 0;
-
-	aml_init(&argc,&argv); //includes MPI_Init inside
-	setup_globals();
-
-	/* Parse arguments. */
 	int SCALE = 16;
 	int edgefactor = 16; /* nedges / nvertices, i.e., 2*avg. degree */
+	int num_bfs_roots = 64;
+	int64_t* bfs_roots = NULL;
+	uint64_t seed1 = 2, seed2 = 3;
+	double make_graph_time = 0;
+	
+	/* Parse arguments. */
+	aml_init(&argc,&argv); //includes MPI_Init inside
+	setup_globals();
 	if (argc >= 2) SCALE = atoi(argv[1]);
 	if (argc >= 3) edgefactor = atoi(argv[2]);
 	if (argc <= 1 || argc >= 4 || SCALE == 0 || edgefactor == 0) {
@@ -85,88 +88,13 @@ int main(int argc, char** argv) {
 		}
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	}
-	uint64_t seed1 = 2, seed2 = 3;
 
-	const char* filename = getenv("TMPFILE");
-#ifdef SSSP
-	int wmode;
-	char *wfilename=NULL;  
-	if(filename!=NULL) {
-		wfilename=malloc(strlen(filename)+9);
-		wfilename[0]='\0';strcat(wfilename,filename);strcat(wfilename,".weights");
-	}
-#endif
-	const int reuse_file = getenv("REUSEFILE")? 1 : 0;
-	/* If filename is NULL, store data in memory */
-
+	/* Initial the tuple graph tg */
 	tuple_graph tg;
-	tg.nglobaledges = (int64_t)(edgefactor) << SCALE;
+	InitTupleGraph(SCALE, seed1, seed2, edgefactor, &tg);
+	
+	/* Make graph according to SCALE and nglobalverts */
 	int64_t nglobalverts = (int64_t)(1) << SCALE;
-
-	tg.data_in_file = (filename != NULL);
-	tg.write_file = 1;
-
-	if (tg.data_in_file) {
-		int is_opened = 0;
-		int mode = MPI_MODE_RDWR | MPI_MODE_EXCL | MPI_MODE_UNIQUE_OPEN;
-		if (!reuse_file) {
-			mode |= MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE;
-		} else {
-			MPI_File_set_errhandler(MPI_FILE_NULL, MPI_ERRORS_RETURN);
-			if (MPI_File_open(MPI_COMM_WORLD, (char*)filename, mode,
-						MPI_INFO_NULL, &tg.edgefile)) {
-				if (0 == rank && getenv("VERBOSE"))
-					fprintf (stderr, "%d: failed to open %s, creating\n",
-							rank, filename);
-				mode |= MPI_MODE_RDWR | MPI_MODE_CREATE;
-#ifdef SSSP
-				wmode=mode;
-#endif
-			} else {
-				MPI_Offset size;
-				MPI_File_get_size(tg.edgefile, &size);
-				if (size == tg.nglobaledges * sizeof(packed_edge)) {
-#ifdef SSSP
-					wmode=mode;
-					if(MPI_File_open(MPI_COMM_WORLD, (char*)wfilename, mode, MPI_INFO_NULL, &tg.weightfile))
-					{
-						wmode |= MPI_MODE_RDWR | MPI_MODE_CREATE;
-						MPI_File_close (&tg.edgefile);
-					}
-					else { //both files were open succedfully
-#endif
-						is_opened = 1;
-						tg.write_file = 0;
-#ifdef SSSP
-					}
-#endif
-				} else /* Size doesn't match, assume different parameters. */
-					MPI_File_close (&tg.edgefile);
-			}
-		}
-		MPI_File_set_errhandler(MPI_FILE_NULL, MPI_ERRORS_ARE_FATAL);
-		if (!is_opened) {
-			MPI_File_open(MPI_COMM_WORLD, (char*)filename, mode, MPI_INFO_NULL, &tg.edgefile);
-			MPI_File_set_size(tg.edgefile, tg.nglobaledges * sizeof(packed_edge));
-		}
-#ifdef SSSP
-		if (!is_opened) {
-			MPI_File_open(MPI_COMM_WORLD, (char*)wfilename, wmode, MPI_INFO_NULL, &tg.weightfile);
-			MPI_File_set_size(tg.weightfile, tg.nglobaledges * sizeof(float));
-		}    
-		MPI_File_set_view(tg.weightfile, 0, MPI_FLOAT, MPI_FLOAT, "native", MPI_INFO_NULL);
-		MPI_File_set_atomicity(tg.weightfile, 0);
-#endif
-		MPI_File_set_view(tg.edgefile, 0, packed_edge_mpi_type, packed_edge_mpi_type, "native", MPI_INFO_NULL);
-		MPI_File_set_atomicity(tg.edgefile, 0);
-	}
-
-	/* Make the raw graph edges. */
-	/* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
-	 * validator). */
-	int num_bfs_roots = 64;
-	int64_t* bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
-
 	make_graph_time = GenerateGraph(SCALE, seed1, seed2, nglobalverts, &tg);
 
 	/* Make user's graph data structure. */
@@ -178,37 +106,12 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "construction_time:              %f s\n", data_struct_time);
 	}
 
+	/* Make the raw graph edges. */
+	/* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
+	 * validator). */
 	//generate non-isolated roots
-	{
-		uint64_t counter = 0;
-		int bfs_root_idx;
-		for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
-			int64_t root;
-			while (1) {
-				double d[2];
-				make_random_numbers(2, seed1, seed2, counter, d);
-				root = (int64_t)((d[0] + d[1]) * nglobalverts) % nglobalverts;
-				counter += 2;
-				if (counter > 2 * nglobalverts) break;
-				int is_duplicate = 0;
-				int i;
-				for (i = 0; i < bfs_root_idx; ++i) {
-					if (root == bfs_roots[i]) {
-						is_duplicate = 1;
-						break;
-					}
-				}
-				if (is_duplicate) continue; /* Everyone takes the same path here */
-				int root_bad = isisolated(root);
-				MPI_Allreduce(MPI_IN_PLACE, &root_bad, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-				if (!root_bad) break;
-			}
-			bfs_roots[bfs_root_idx] = root;
-		}
-		num_bfs_roots = bfs_root_idx;
-
-
-	}
+	num_bfs_roots = GenerateNonIsolatedRoots(seed1, seed2, nglobalverts, num_bfs_roots, &bfs_roots); 
+	
 	/* Number of edges visited in each BFS; a double so get_statistics can be
 	 * used directly. */
 	double* edge_counts = (double*)xmalloc(num_bfs_roots * sizeof(double));

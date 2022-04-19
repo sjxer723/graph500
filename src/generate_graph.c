@@ -1,4 +1,92 @@
 #include "generate_graph.h"
+#include "csr_reference.h"
+#include <math.h>
+#include <assert.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <limits.h>
+#include <stdint.h>
+#include <inttypes.h>
+
+int isisolated(int64_t v);
+
+void InitTupleGraph (int SCALE, uint64_t seed1, uint64_t seed2,  int edgefactor, tuple_graph *tg)
+{
+    const char* filename = getenv("TMPFILE");
+
+#ifdef SSSP
+	int wmode;
+	char *wfilename=NULL;  
+	if(filename!=NULL) {
+		wfilename=malloc(strlen(filename)+9);
+		wfilename[0]='\0';strcat(wfilename,filename);strcat(wfilename,".weights");
+	}
+#endif
+	const int reuse_file = getenv("REUSEFILE")? 1 : 0;
+	/* If filename is NULL, store data in memory */
+
+	tg -> nglobaledges = (int64_t)(edgefactor) << SCALE;
+	
+	tg -> data_in_file = (filename != NULL);
+	tg -> write_file = 1;
+
+	if (tg -> data_in_file) {
+		int is_opened = 0;
+		int mode = MPI_MODE_RDWR | MPI_MODE_EXCL | MPI_MODE_UNIQUE_OPEN;
+		if (!reuse_file) {
+			mode |= MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE;
+		} else {
+			MPI_File_set_errhandler(MPI_FILE_NULL, MPI_ERRORS_RETURN);
+			if (MPI_File_open(MPI_COMM_WORLD, (char*)filename, mode,
+						MPI_INFO_NULL, &tg -> edgefile)) {
+				if (0 == rank && getenv("VERBOSE"))
+					fprintf (stderr, "%d: failed to open %s, creating\n",
+							rank, filename);
+				mode |= MPI_MODE_RDWR | MPI_MODE_CREATE;
+#ifdef SSSP
+				wmode=mode;
+#endif
+			} else {
+				MPI_Offset size;
+				MPI_File_get_size(tg -> edgefile, &size);
+				if (size == tg -> nglobaledges * sizeof(packed_edge)) {
+#ifdef SSSP
+					wmode=mode;
+					if(MPI_File_open(MPI_COMM_WORLD, (char*)wfilename, mode, MPI_INFO_NULL, &tg -> weightfile))
+					{
+						wmode |= MPI_MODE_RDWR | MPI_MODE_CREATE;
+						MPI_File_close (&tg -> edgefile);
+					}
+					else { //both files were open succedfully
+#endif
+						is_opened = 1;
+						tg -> write_file = 0;
+#ifdef SSSP
+					}
+#endif
+				} else /* Size doesn't match, assume different parameters. */
+					MPI_File_close (&tg -> edgefile);
+			}
+		}
+		MPI_File_set_errhandler(MPI_FILE_NULL, MPI_ERRORS_ARE_FATAL);
+		if (!is_opened) {
+			MPI_File_open(MPI_COMM_WORLD, (char*)filename, mode, MPI_INFO_NULL, &tg -> edgefile);
+			MPI_File_set_size(tg -> edgefile, tg -> nglobaledges * sizeof(packed_edge));
+		}
+#ifdef SSSP
+		if (!is_opened) {
+			MPI_File_open(MPI_COMM_WORLD, (char*)wfilename, wmode, MPI_INFO_NULL, &tg -> weightfile);
+			MPI_File_set_size(tg -> weightfile, tg -> nglobaledges * sizeof(float));
+		}    
+		MPI_File_set_view(tg -> weightfile, 0, MPI_FLOAT, MPI_FLOAT, "native", MPI_INFO_NULL);
+		MPI_File_set_atomicity(tg -> weightfile, 0);
+#endif
+		MPI_File_set_view(tg -> edgefile, 0, packed_edge_mpi_type, packed_edge_mpi_type, "native", MPI_INFO_NULL);
+		MPI_File_set_atomicity(tg -> edgefile, 0);
+	}
+}
 
 double GenerateGraph(int SCALE, uint64_t seed1, uint64_t seed2, int64_t nglobalverts, tuple_graph* tg)
 {
@@ -132,3 +220,16 @@ double GenerateGraph(int SCALE, uint64_t seed1, uint64_t seed2, int64_t nglobalv
 
 	return make_graph_time;
 }
+
+double GenerateGraph_WithoutWritingToFile(int SCALE, uint64_t seed1, uint64_t seed2, int edgefactor)
+{   
+    tuple_graph tg;
+	int64_t nglobalverts = 0;
+
+    tg.nglobaledges = (int64_t)(edgefactor) << SCALE;
+    tg.write_file = 0;
+    nglobalverts = (int64_t)(1) << SCALE;
+
+    return GenerateGraph(SCALE, seed1, seed2, nglobalverts, &tg);
+}
+

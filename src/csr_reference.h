@@ -28,7 +28,9 @@ typedef struct oned_csr_graph {
 
 void convert_graph_to_oned_csr(const tuple_graph* const tg, oned_csr_graph* const g);
 void free_oned_csr_graph(oned_csr_graph* const g);
-
+int GenerateNonIsolatedRoots(uint64_t seed1, uint64_t seed2, int nglobalverts,
+                             int num_bfs_roots, int64_t **bfs_roots);
+    
 //#define BYTES_PER_VERTEX 8
 //#define COLUMN(i) column[i]
 //#define SETCOLUMN(a,b) column[a]=b;

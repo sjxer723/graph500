@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "csr_reference.h"
+#include "../generator/make_graph.h"
 #include "aml.h"
 #include <stdint.h>
 #include <inttypes.h>
@@ -32,6 +33,46 @@ extern oned_csr_graph g; //from bfs_reference for isisolated function
 int isisolated(int64_t v) {
 	if(my_pe()==VERTEX_OWNER(v)) return (g.rowstarts[VERTEX_LOCAL(v)]==g.rowstarts[VERTEX_LOCAL(v)+1]);
 	return 0; //locally no evidence, allreduce required
+}
+
+/*
+ * Generate non-isolated roots and return the number of roots in-deed created.
+ * @param num_bfs_roots the number of bfs roots
+ * @param bfs_roots the pointer pointing to the bfs roots
+ **/
+int GenerateNonIsolatedRoots(uint64_t seed1, uint64_t seed2, int nglobalverts, 
+    int num_bfs_roots, int64_t **out)
+{   
+    uint64_t counter = 0;
+	int bfs_root_idx;
+	int64_t *bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
+	
+	for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
+		int64_t root;
+		while (1) {
+			double d[2];
+			make_random_numbers(2, seed1, seed2, counter, d);
+			root = (int64_t)((d[0] + d[1]) * nglobalverts) % nglobalverts;
+			counter += 2;
+			if (counter > 2 * nglobalverts) break;
+			int is_duplicate = 0;
+			int i;
+			for (i = 0; i < bfs_root_idx; ++i) {
+				if (root == bfs_roots[i]) {
+					is_duplicate = 1;
+					break;
+				}
+			}
+			if (is_duplicate) continue; /* Everyone takes the same path here */
+			int root_bad = isisolated(root);
+			MPI_Allreduce(MPI_IN_PLACE, &root_bad, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+			if (!root_bad) break;
+		}
+		bfs_roots[bfs_root_idx] = root;
+	}
+
+	*out = bfs_roots;
+	return bfs_root_idx;
 }
 
 void halfedgehndl(int from,void* data,int sz)

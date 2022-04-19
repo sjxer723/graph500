@@ -9,33 +9,47 @@ group("all") {
   ]
 }
 
+CFLAGS = [
+  "-Drestrict=__restrict__",
+  "-O3",
+  "-DGRAPH_GENERATOR_MPI",
+  "-DREUSE_CSR_FOR_VALIDATION",
+  "-I../aml",
+  "-I../src",
+]
+
+LDFLAGS = [
+  "-lcmocka",
+  "-lpthread",
+]
+
 executable("graph500_init_test") {
   sources = [ "graph500_init_test.c" ]
 
   configs = []
-  cflags = [
-    "-I../aml/",
-    "-I./src",
-  ]
+  cflags = CFLAGS
   ldflags = [ "-lcmocka" ]
 }
 
 executable("graph500_generate_graph_test") {
-  sources = [ "graph500_generate_graph_test.c" ]
+  sources = [ "graph500_generate_graph_test.c", ]
 
-  deps = [ "../src:generate_graph" ]
+  deps = [ "../src:generate_graph"]
   configs = []
-  cflags = [
-    "-Drestrict=__restrict__",
-    "-O3",
-    "-DGRAPH_GENERATOR_MPI",
-    "-DREUSE_CSR_FOR_VALIDATION",
-    "-I../aml",
-    "-I../src",
+  cflags = CFLAGS
+  ldflags = LDFLAGS
+  libs = [ "m" ]
+}
+
+executable("graph500_construct_data_structure_test") {
+  sources = [ "graph500_construct_data_structure_test.c" ]
+
+  deps = [
+    "../src:bfs_reference",
+    "../src:generate_graph",
   ]
-  ldflags = [
-    "-lcmocka",
-    "-lpthread",
-  ]
+  configs = []
+  cflags = CFLAGS
+  ldflags = LDFLAGS
   libs = [ "m" ]
 }

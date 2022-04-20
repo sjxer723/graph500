@@ -4,7 +4,9 @@
 
 group("all") {
   deps = [
+    ":graph500_construct_data_structure_test",
     ":graph500_generate_graph_test",
+    ":graph500_run_bfs_test",
     ":graph500_init_test",
   ]
 }
@@ -32,9 +34,9 @@ executable("graph500_init_test") {
 }
 
 executable("graph500_generate_graph_test") {
-  sources = [ "graph500_generate_graph_test.c", ]
+  sources = [ "graph500_generate_graph_test.c" ]
 
-  deps = [ "../src:generate_graph"]
+  deps = [ "../src:generate_graph" ]
   configs = []
   cflags = CFLAGS
   ldflags = LDFLAGS
@@ -47,6 +49,20 @@ executable("graph500_construct_data_structure_test") {
   deps = [
     "../src:bfs_reference",
     "../src:generate_graph",
+  ]
+  configs = []
+  cflags = CFLAGS
+  ldflags = LDFLAGS
+  libs = [ "m" ]
+}
+
+executable("graph500_run_bfs_test") {
+  sources = [ "graph500_run_bfs_test.c" ]
+
+  deps = [
+    "../src:bfs_reference",
+    "../src:generate_graph",
+    "../src:statistics",
   ]
   configs = []
   cflags = CFLAGS

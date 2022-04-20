@@ -1,6 +1,7 @@
 #include "generate_graph.h"
 #include "common.h"
 #include "aml.h"
+#include "statistics.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdarg.h>
@@ -17,8 +18,10 @@ static void graph500_construct_data_structure_test1()
     uint64_t seed1 = 2, seed2 = 3;
     int64_t nglobalverts = (int64_t)(1) << SCALE;
     tuple_graph tg;
+    config_t cfg;
 
-    InitTupleGraph(SCALE, seed1, seed2, edgefactor, &tg);
+    init_graph500_cfg(&cfg, SCALE, edgefactor, 64, seed1, seed2);
+    InitTupleGraph(cfg, &tg);
     GenerateGraph(SCALE, seed1, seed2, nglobalverts, &tg);
 
     double data_struct_start = MPI_Wtime();
@@ -35,8 +38,10 @@ static void graph500_construct_data_structure_test2()
     uint64_t seed1 = 2, seed2 = 3;
     int64_t nglobalverts = (int64_t)(1) << SCALE;
     tuple_graph tg;
+    config_t cfg;
 
-    InitTupleGraph(SCALE, seed1, seed2, edgefactor, &tg);
+    init_graph500_cfg(&cfg, SCALE, edgefactor, 64, seed1, seed2);
+    InitTupleGraph(cfg, &tg);
     GenerateGraph(SCALE, seed1, seed2, nglobalverts, &tg);
 
     double data_struct_start = MPI_Wtime();

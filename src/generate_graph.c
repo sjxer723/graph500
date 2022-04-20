@@ -12,7 +12,7 @@
 
 int isisolated(int64_t v);
 
-void InitTupleGraph (int SCALE, uint64_t seed1, uint64_t seed2,  int edgefactor, tuple_graph *tg)
+void InitTupleGraph (config_t graph500_cfg, tuple_graph *tg)
 {
     const char* filename = getenv("TMPFILE");
 
@@ -27,7 +27,7 @@ void InitTupleGraph (int SCALE, uint64_t seed1, uint64_t seed2,  int edgefactor,
 	const int reuse_file = getenv("REUSEFILE")? 1 : 0;
 	/* If filename is NULL, store data in memory */
 
-	tg -> nglobaledges = (int64_t)(edgefactor) << SCALE;
+	tg -> nglobaledges = (int64_t)(graph500_cfg.edgefactor) << graph500_cfg.SCALE;
 	
 	tg -> data_in_file = (filename != NULL);
 	tg -> write_file = 1;
@@ -214,9 +214,9 @@ double GenerateGraph(int SCALE, uint64_t seed1, uint64_t seed2, int64_t nglobalv
 
 	double make_graph_stop = MPI_Wtime();
 	double make_graph_time = make_graph_stop - make_graph_start;
-	if (rank == 0) { /* Not an official part of the results */
-		fprintf(stderr, "graph_generation:               %f s\n", make_graph_time);
-	}
+	//if (rank == 0) { /* Not an official part of the results */
+	//	fprintf(stderr, "graph_generation:               %f s\n", make_graph_time);
+	//}
 
 	return make_graph_time;
 }

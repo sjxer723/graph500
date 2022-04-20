@@ -22,13 +22,18 @@ int *rowstarts;
 oned_csr_graph g;
 
 //user should provide this function which would be called once to do kernel 1: graph convert
-void make_graph_data_structure(const tuple_graph* const tg) {
+double make_graph_data_structure(const tuple_graph* const tg) {
+	double data_struct_start = MPI_Wtime();
+	
 	//graph conversion, can be changed by user by replacing oned_csr.{c,h} with new graph format 
 	convert_graph_to_oned_csr(tg, &g);
 
 	column=g.column;
 	visited_size = (g.nlocalverts + ulong_bits - 1) / ulong_bits;
 	visited = xmalloc(visited_size*sizeof(unsigned long));
+	double data_struct_end = MPI_Wtime();
+	
+	return data_struct_end - data_struct_start;
 	//user code to allocate other buffers for bfs
 }
 

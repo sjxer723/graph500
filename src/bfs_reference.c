@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "aml.h"
+#include "statistics.h"
 #include "csr_reference.h"
 #include "bitmap_reference.h"
 #include <stdint.h>
@@ -63,7 +64,9 @@ void send_visit(int64_t glob, int from) {
 	aml_send(&m,1,sizeof(visitmsg),VERTEX_OWNER(glob));
 }
 
-void make_graph_data_structure(const tuple_graph* const tg) {
+double make_graph_data_structure(const tuple_graph* const tg) {
+	double data_struct_start = MPI_Wtime();
+	
 	int i,j,k;
 	convert_graph_to_oned_csr(tg, &g);
 	column=g.column;
@@ -74,6 +77,10 @@ void make_graph_data_structure(const tuple_graph* const tg) {
 	q2 = xmalloc(g.nlocalverts*sizeof(int));
 	for(i=0;i<g.nlocalverts;i++) q1[i]=0,q2[i]=0; //touch memory
 	visited = xmalloc(visited_size*sizeof(unsigned long));
+
+	double data_struct_end = MPI_Wtime();
+	
+	return data_struct_end - data_struct_start;
 }
 
 void run_bfs(int64_t root, int64_t* pred) {
@@ -105,6 +112,7 @@ void run_bfs(int64_t root, int64_t* pred) {
 		for(i=0;i<qc;i++)
 			for(j=rowstarts[q1[i]];j<rowstarts[q1[i]+1];j++)
 				send_visit(COLUMN(j),q1[i]);
+				
 		aml_barrier();
 
 		qc=q2c;int *tmp=q1;q1=q2;q2=tmp;
@@ -122,6 +130,71 @@ void run_bfs(int64_t root, int64_t* pred) {
 	}
 	aml_barrier();
 
+}
+
+void run_bfs_for_roots(tuple_graph *tg, int num_bfs_roots, int64_t *bfs_roots,
+					stat_t *statis, uint64_t nlocalverts, int64_t *pred, float *shortest)
+{
+	int bfs_root_idx,i;
+
+	statis -> validation_passed = 1;
+	statis -> bfs_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
+	statis -> validate_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
+	statis -> edge_counts = (double*)xmalloc(num_bfs_roots * sizeof(double));
+
+	clean_pred(&pred[0]); //user-provided function from bfs_implementation.c
+	run_bfs(bfs_roots[0], &pred[0]); //warm-up
+#ifdef ENERGYLOOP_BFS
+            int eloop;
+            if(!my_pe()) printf("starting energy loop BFS\n");
+            for(eloop=0;eloop<1000000;eloop++)
+                    for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
+            clean_pred(&pred[0]);
+            run_bfs(bfs_roots[bfs_root_idx], &pred[0]);
+            }
+            if(!my_pe()) printf("finished energy loop BFS\n");
+#endif
+	if (!getenv("SKIP_VALIDATION")) {
+		int64_t nedges=0;
+		validate_result(1, tg, nlocalverts, bfs_roots[0], pred,shortest,NULL);
+	}
+
+	for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
+		int64_t root = bfs_roots[bfs_root_idx];
+
+		//if (rank == 0) fprintf(stderr, "Running BFS %d\n", bfs_root_idx);
+
+		clean_pred(&pred[0]); //user-provided function from bfs_implementation.c
+		/* Do the actual BFS. */
+		double bfs_start = MPI_Wtime();
+		run_bfs(root, &pred[0]);
+		double bfs_stop = MPI_Wtime();
+		statis -> bfs_times[bfs_root_idx] = bfs_stop - bfs_start;
+		//if (rank == 0) fprintf(stderr, "Time for BFS %d is %f\n", bfs_root_idx, bfs_times[bfs_root_idx]);
+		int64_t edge_visit_count=0;
+		get_edge_count_for_teps(&edge_visit_count);
+		statis -> edge_counts[bfs_root_idx] = (double)edge_visit_count;
+		//if (rank == 0) fprintf(stderr, "TEPS for BFS %d is %g\n", bfs_root_idx, edge_visit_count / bfs_times[bfs_root_idx]);
+
+		/* Validate result. */
+		if (!getenv("SKIP_VALIDATION")) {
+			//if (rank == 0) fprintf(stderr, "Validating BFS %d\n", bfs_root_idx);
+
+			double validate_start = MPI_Wtime();
+			int validation_passed_one = validate_result(1, tg, nlocalverts, root, pred,shortest,&edge_visit_count);
+			double validate_stop = MPI_Wtime();
+
+			statis -> validate_times[bfs_root_idx] = validate_stop - validate_start;
+			//if (rank == 0) fprintf(stderr, "Validate time for BFS %d is %f\n", bfs_root_idx, validate_times[bfs_root_idx]);
+
+			if (!validation_passed_one) {
+				statis -> validation_passed = 0;
+				//if (rank == 0) fprintf(stderr, "Validation failed for this BFS root; skipping rest.\n");
+				break;
+			}
+		} else
+			statis -> validate_times[bfs_root_idx] = -1;
+	}
 }
 
 //we need edge count to calculate teps. Validation will check if this count is correct

@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include <limits.h>
 #include <mpi.h>
+#include "statistics.h"
 #include "../generator/graph_generator.h"
 #ifndef PROCS_PER_NODE_NOT_POWER_OF_TWO
 #define SIZE_MUST_BE_A_POWER_OF_TWO
@@ -226,9 +227,11 @@ typedef struct tuple_graph {
 
 						/* Definitions in each BFS file, using static global variables for internal
 						 * storage: */
-						void make_graph_data_structure(const tuple_graph* const tg);
+						double make_graph_data_structure(const tuple_graph* const tg);
 						void free_graph_data_structure(void);
 						void run_bfs(int64_t root, int64_t* pred);
+						void run_bfs_for_roots(tuple_graph *tg, int num_bfs_roots, int64_t *bfs_roots,
+							stat_t *statis, uint64_t nlocalverts, int64_t *pred, float *shortest);
 						void get_edge_count_for_teps(int64_t* edge_visit_count);
 						void clean_pred(int64_t* pred);
 						size_t get_nlocalverts_for_pred(void);

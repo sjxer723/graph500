@@ -13,6 +13,7 @@ SRC = [
   "main.c",
   "validate.c",
   "../aml/aml.c",
+  "statistics.c",
 ]
 
 GEN_SRC = [
@@ -27,7 +28,7 @@ source_set("utils") {
 }
 
 source_set("generate_graph") {
-  sources = [ "generate_graph.c"]
+  sources = [ "generate_graph.c" ]
   sources += GEN_SRC
 
   deps = [ ":utils" ]
@@ -38,8 +39,13 @@ source_set("bfs_reference") {
     "../aml/aml.c",
     "bfs_reference.c",
     "csr_reference.c",
+    "validate.c",
   ]
   cflags = [ "-I../aml/" ]
+}
+
+source_set("statistics") {
+  sources = [ "statistics.c" ]
 }
 
 executable("graph500_reference_bfs_sssp") {

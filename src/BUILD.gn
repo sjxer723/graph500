@@ -4,7 +4,6 @@
 
 group("all") {
   deps = [
-    ":graph500_reference_bfs",
     ":graph500_reference_bfs_sssp",
   ]
 }
@@ -23,6 +22,16 @@ GEN_SRC = [
   "../generator/utils.c",
 ]
 
+CFLAGS = [
+    "-Drestrict=__restrict__",
+    "-O3",
+    "-DGRAPH_GENERATOR_MPI",
+    "-DREUSE_CSR_FOR_VALIDATION",
+    "-I../aml/",
+    "-DSSSP",
+    "-fcommon",
+]
+
 source_set("utils") {
   sources = [ "utils.c" ]
 }
@@ -31,6 +40,7 @@ source_set("generate_graph") {
   sources = [ "generate_graph.c" ]
   sources += GEN_SRC
 
+  ldflags = [ "-fcommon" ]
   deps = [ ":utils" ]
 }
 
@@ -41,7 +51,7 @@ source_set("bfs_reference") {
     "csr_reference.c",
     "validate.c",
   ]
-  cflags = [ "-I../aml/" ]
+  cflags = [ "-I../aml/", "-lopenmpi", "-fcommon" ]
 }
 
 source_set("statistics") {
@@ -58,34 +68,7 @@ executable("graph500_reference_bfs_sssp") {
 
   deps = [ ":generate_graph" ]
   configs = []
-  cflags = [
-    "-Drestrict=__restrict__",
-    "-O3",
-    "-DGRAPH_GENERATOR_MPI",
-    "-DREUSE_CSR_FOR_VALIDATION",
-    "-I../aml/",
-    "-DSSSP",
-  ]
-  ldflags = [ "-lpthread" ]
-  libs = [ "m" ]
-}
-
-executable("graph500_reference_bfs") {
-  sources = [
-    "bfs_reference.c",
-    "csr_reference.c",
-  ]
-  sources += SRC
-
-  deps = [ ":generate_graph" ]
-  configs = []
-  cflags = [
-    "-Drestrict=__restrict__",
-    "-O3",
-    "-DGRAPH_GENERATOR_MPI",
-    "-DREUSE_CSR_FOR_VALIDATION",
-    "-I../aml/",
-  ]
-  ldflags = [ "-lpthread" ]
+  cflags = CFLAGS
+  ldflags = [ "-lpthread",]
   libs = [ "m" ]
 }

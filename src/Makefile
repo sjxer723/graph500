@@ -1,6 +1,6 @@
 CFLAGS = -Drestrict=__restrict__ -O3 -DGRAPH_GENERATOR_MPI -DREUSE_CSR_FOR_VALIDATION -I../aml
-LDFLAGS = -lpthread
-MPICC =$(HOME)/opt/usr/local/bin/mpicc
+LDFLAGS = -lpthread -fcommon
+MPICC = mpicc
 LIBS = -lm
 
 all: graph500_reference_bfs_sssp graph500_reference_bfs 

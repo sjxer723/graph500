@@ -68,7 +68,7 @@ toolchain("gcc") {
     if (is_mac) {
       command = "mpicc {{ldflags}} -o $outfile @$rspfile {{solibs}} {{libs}}"
     } else {
-      command = "g++ {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
+      command = "mpicc {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
     }
     description = "LINK $outfile"
     default_output_dir = "{{root_out_dir}}"
